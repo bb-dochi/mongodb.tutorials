@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const { userRouter } = require("./routes/userRoute");
+const { blogRouter } = require("./routes/blogRoute");
 const mongoose = require("mongoose");
 const config = require("../config");
 
@@ -15,11 +16,10 @@ const server = async () => {
         mongoose.set("debug", true);
         console.log("MongoDB connected");
 
-        // add middleware
         app.use(express.json());
         app.use("/user", userRouter);
+        app.use("/blog", blogRouter);
 
-        // routing
         app.listen(3000, () => console.log("server listening on port 3000"));
     } catch (err) {
         console.log(err);
