@@ -4,6 +4,7 @@ const { userRouter, blogRouter } = require("./routes");
 
 const mongoose = require("mongoose");
 const config = require("../config");
+const { generateFakeData } = require("../faker");
 
 const server = async () => {
     try {
@@ -15,6 +16,8 @@ const server = async () => {
         });
         mongoose.set("debug", true);
         console.log("MongoDB connected");
+
+        // await generateFakeData(100, 10, 300);
 
         app.use(express.json());
         app.use("/user", userRouter);

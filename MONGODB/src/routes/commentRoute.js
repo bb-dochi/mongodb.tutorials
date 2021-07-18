@@ -38,7 +38,6 @@ commentRouter.post("/", async (req, res) => {
 commentRouter.get("/", async (req, res) => {
     try {
         const { blogId } = req.params;
-        console.log(blogId);
         if (!isValidObjectId(blogId))
             return res.status(400).send({ err: "blogId is invalid" });
 
