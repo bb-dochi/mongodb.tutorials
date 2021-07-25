@@ -26,8 +26,14 @@ commentRouter.post("/", async (req, res) => {
         if (!blog.islive)
             return res.status(400).send({ err: "blog is not avaliable" });
 
-        const comment = new Comment({ content, user, blog });
-        await comment.save();
+        const comment = new Comment({ content, user });
+        await Promise.all([
+            comment.save(),
+            await Blog.updateOne(
+                { _id: blogId },
+                { $push: { comments: comment } }
+            ),
+        ]);
 
         return res.send({ comment });
     } catch (err) {
@@ -41,8 +47,60 @@ commentRouter.get("/", async (req, res) => {
         if (!isValidObjectId(blogId))
             return res.status(400).send({ err: "blogId is invalid" });
 
-        const comments = await Comment.find({ blog: blogId });
-        return res.send({ comments });
+        const { comments } = await Blog.findOne({ _id: blogId });
+        return res.send(comments);
+    } catch (err) {
+        return res.status(500).send({ err: err.message });
+    }
+});
+
+commentRouter.patch("/:commentId", async (req, res) => {
+    try {
+        const { blogId, commentId } = req.params;
+        const { content } = req.body;
+
+        if (!isValidObjectId(blogId))
+            return res.status(400).send({ err: "blogId is invalid" });
+        if (!isValidObjectId(commentId))
+            return res.status(400).send({ err: "commentId is invalid" });
+
+        if (typeof content !== "string")
+            return res.status(400).send({ err: "content is required" });
+
+        const [comment] = await Promise.all([
+            await Comment.findOneAndUpdate(
+                { _id: commentId },
+                { content },
+                { new: true }
+            ),
+            await Blog.updateOne(
+                { _id: blogId, "comments._id": commentId },
+                { "comments.$.content": content }
+            ),
+        ]);
+
+        return res.send(comment);
+    } catch (err) {
+        return res.status(500).send({ err: err.message });
+    }
+});
+
+commentRouter.delete("/:commentId", async (req, res) => {
+    try {
+        const { blogId, commentId } = req.params;
+
+        if (!isValidObjectId(blogId))
+            return res.status(400).send({ err: "blogId is invalid" });
+        if (!isValidObjectId(commentId))
+            return res.status(400).send({ err: "commentId is invalid" });
+
+        const comment = await Comment.findOneAndDelete({ _id: commentId });
+        await Blog.updateOne(
+            { _id: blogId },
+            { $pull: { comments: { _id: commentId } } }
+        );
+
+        return res.send({ comment });
     } catch (err) {
         return res.status(500).send({ err: err.message });
     }
