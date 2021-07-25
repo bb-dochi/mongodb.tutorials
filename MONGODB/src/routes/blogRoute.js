@@ -3,6 +3,7 @@ const { isValidObjectId } = require("mongoose");
 const { Blog, User } = require("../models");
 const blogRouter = Router();
 const { commentRouter } = require("./commentRoute");
+const BLOG_PER_PAGE = 3;
 
 blogRouter.use("/:blogId/comment", commentRouter);
 
@@ -35,7 +36,13 @@ blogRouter.post("/", async (req, res) => {
 
 blogRouter.get("/", async (req, res) => {
     try {
-        const blogs = await Blog.find({}).limit(200);
+        const { page } = req.query;
+        const skipNum = parseInt(page) * BLOG_PER_PAGE;
+
+        const blogs = await Blog.find({})
+            .sort({ updateAt: -1 })
+            .skip(skipNum)
+            .limit(BLOG_PER_PAGE);
         return res.send({ blogs });
     } catch (err) {
         console.log(err);
