@@ -1,53 +1,74 @@
 const { Router } = require("express");
-const { isValidObjectId } = require("mongoose");
+const { isValidObjectId, startSession } = require("mongoose");
 const { Blog, User, Comment } = require("../models");
 const commentRouter = Router({ mergeParams: true });
-
+const COMMENT_PER_PAGE = 3;
 commentRouter.post("/", async (req, res) => {
+    const session = await startSession();
+    let comment;
     try {
-        const { blogId } = req.params;
-        const { content, userId } = req.body;
+        await session.withTransaction(async () => {
+            const { blogId } = req.params;
+            const { content, userId } = req.body;
 
-        if (!isValidObjectId(blogId))
-            return res.status(400).send({ err: "blogId is invalid" });
-        if (!isValidObjectId(userId))
-            return res.status(400).send({ err: "userId is invalid" });
+            if (!isValidObjectId(blogId))
+                return res.status(400).send({ err: "blogId is invalid" });
+            if (!isValidObjectId(userId))
+                return res.status(400).send({ err: "userId is invalid" });
 
-        if (typeof content !== "string")
-            return res.status(400).send({ err: "content is required" });
+            if (typeof content !== "string")
+                return res.status(400).send({ err: "content is required" });
 
-        const [blog, user] = await Promise.all([
-            Blog.findById(blogId),
-            User.findById(userId),
-        ]);
+            const [blog, user] = await Promise.all([
+                Blog.findById(blogId, {}, { session }),
+                User.findById(userId, {}, { session }),
+            ]);
 
-        if (!blog || !user)
-            return res.status(400).send({ err: "not found blog or user" });
-        if (!blog.islive)
-            return res.status(400).send({ err: "blog is not avaliable" });
+            if (!blog || !user)
+                return res.status(400).send({ err: "not found blog or user" });
+            if (!blog.islive)
+                return res.status(400).send({ err: "blog is not avaliable" });
 
-        const comment = new Comment({ content, user });
-        await Promise.all([
-            comment.save(),
-            await Blog.updateOne(
-                { _id: blogId },
-                { $push: { comments: comment } }
-            ),
-        ]);
+            comment = new Comment({ content, user, blog: blogId });
 
+            blog.commentCount++;
+            blog.comments.push(comment);
+            if (blog.commentCount > COMMENT_PER_PAGE) blog.comments.shift();
+            // Blog.updateOne(
+            //     { _id: blogId },
+            //     {
+            //         $inc: { commentCount: 1 },
+            //         $push: {
+            //             comments: {
+            //                 $each: [comment],
+            //                 $slice: -COMMENT_PER_PAGE,
+            //             },
+            //         },
+            //     }
+            // ),
+            await Promise.all([comment.save({ session }), blog.save()]);
+        });
         return res.send({ comment });
     } catch (err) {
         return res.status(500).send({ err: err.message });
+    } finally {
+        await session.endSession();
     }
 });
 
 commentRouter.get("/", async (req, res) => {
     try {
+        const { page = 0 } = req.query;
+        const skipNum = parseInt(page) * COMMENT_PER_PAGE;
+
         const { blogId } = req.params;
         if (!isValidObjectId(blogId))
             return res.status(400).send({ err: "blogId is invalid" });
 
-        const { comments } = await Blog.findOne({ _id: blogId });
+        const comments = await Comment.find({ blog: blogId })
+            .sort({ createdAt: -1 })
+            .skip(skipNum)
+            .limit(COMMENT_PER_PAGE);
         return res.send(comments);
     } catch (err) {
         return res.status(500).send({ err: err.message });
