@@ -5,7 +5,8 @@ const mongoose = require("mongoose");
 
 const server = async () => {
     try {
-        const { MONGO_URI } = process.env;
+        const { PORT, MONGO_URI } = process.env;
+        if (!PORT) throw new Error("PORT is required!!");
         if (!MONGO_URI) throw new Error("MONGO_URI is required!!");
 
         await mongoose.connect(process.env.MONGO_URI, {
@@ -21,7 +22,7 @@ const server = async () => {
         app.use("/user", userRouter);
         app.use("/blog", blogRouter);
 
-        app.listen(3000, () => console.log("server listening on port 3000"));
+        app.listen(PORT, () => console.log(`server listening on port ${PORT}`));
     } catch (err) {
         console.log(err);
     }
